@@ -854,10 +854,14 @@ function printPDF(){
 
     // Chip
     const chipX = ML + doc.getTextWidth(qLabel) + 2;
-    doc.saveGraphicsState();
-    doc.translate(chipX, y+0.5);
-    chip(isCorrect ? 'Correcta' : 'Incorrecta', isCorrect ? 'ok' : 'no');
-    doc.restoreGraphicsState();
+    doc.setFontSize(7.5); doc.setFont('helvetica','bold');
+    const chipText = isCorrect ? 'Correcta' : 'Incorrecta';
+    const chipW = doc.getTextWidth(chipText) + 6;
+    const chipType = isCorrect ? 'ok' : 'no';
+    if(chipType==='ok'){ doc.setFillColor(...C.verdeBg); doc.setDrawColor(...C.verde); doc.setTextColor(...C.verde); }
+    else { doc.setFillColor(...C.rojoBg); doc.setDrawColor(...C.rojo); doc.setTextColor(...C.rojo); }
+    doc.roundedRect(chipX, y+0.5, chipW, 5.5, 2, 2, 'FD');
+    doc.text(chipText, chipX+3, y+4.5);
     y += 8;
 
     // Question text
@@ -1061,14 +1065,12 @@ function generateStudentPDF(row){
     doc.setFontSize(9.5);doc.setFont('helvetica','bold');doc.setTextColor(...C.navy);
     doc.text((i+1)+'. ',ML,y+4);
     const chipX=ML+doc.getTextWidth((i+1)+'. ')+2;
-    doc.saveGraphicsState();doc.translate(chipX,y+0.5);
     doc.setFontSize(7.5);doc.setFont('helvetica','bold');
     const ct=isCorrect?'Correcta':'Incorrecta';
     const tw=doc.getTextWidth(ct)+6;
     if(isCorrect){doc.setFillColor(...C.verdeBg);doc.setDrawColor(...C.verde);doc.setTextColor(...C.verde);}
     else{doc.setFillColor(...C.rojoBg);doc.setDrawColor(...C.rojo);doc.setTextColor(...C.rojo);}
-    doc.roundedRect(0,0,tw,5.5,2,2,'FD');doc.text(ct,3,4);
-    doc.restoreGraphicsState();y+=8;
+    doc.roundedRect(chipX,y+0.5,tw,5.5,2,2,'FD');doc.text(ct,chipX+3,y+4.5);y+=8;
 
     doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(...C.dark);
     const qLines=doc.splitTextToSize(a.question,CW-4);doc.text(qLines,ML+2,y);y+=qLines.length*3.8+2;
@@ -1133,19 +1135,25 @@ function renderTeacherTable(rows){
       <td>${dateStr}</td>
       <td style="white-space:nowrap">
         <button class="btn-del btn-pdf-row" data-pdfidx="${idx}" title="Descargar PDF retroalimentación"><i class="fa-solid fa-file-pdf"></i></button>
-        <button class="btn-del" data-del="${r.id||''}" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+        <button class="btn-del" data-del="${idx}" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
       </td>
     </tr>`;
   });
   html += '</tbody></table>';
   wrap.innerHTML = html;
 
-  // Delete handlers
+  // Delete handlers  
   wrap.querySelectorAll('[data-del]').forEach(btn=>{
     btn.addEventListener('click', async function(){
-      const id = this.getAttribute('data-del');
+      const idx = parseInt(this.getAttribute('data-del'));
+      if(isNaN(idx)) return;
       if(!confirm('Eliminar este registro?')) return;
-      await fetch(API_BASE+'/grades?id=eq.'+id, {method:'DELETE'});
+      // Remove from local array, clear all, re-save remaining
+      const remaining = currentTeacherRows.filter((_,i)=> i !== idx);
+      await fetch(API_BASE+'/clear',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'clear_all',examId:EXAM_ID})});
+      for(const r of remaining){
+        await fetch(API_BASE+'/grades',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(r)});
+      }
       loadTeacher();
     });
   });
