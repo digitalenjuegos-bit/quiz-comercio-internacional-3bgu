@@ -869,6 +869,25 @@ function printPDF(){
     rojo:[165,35,52], rojoBg:[251,233,236], white:[255,255,255]
   };
 
+  /* ── Vector icon for options (replaces broken Unicode) ── */
+  function dibujarIconoOpcion(doc, cx, cy, r, tipo) {
+    var colores = { correcta:[30,123,79], incorrecta:[139,30,63], neutro:[196,201,212] };
+    var rgb = colores[tipo];
+    doc.setFillColor(rgb[0], rgb[1], rgb[2]);
+    doc.circle(cx, cy, r, tipo === 'neutro' ? 'D' : 'F');
+    if (tipo !== 'neutro') {
+      doc.setDrawColor(255, 255, 255);
+      doc.setLineWidth(Math.max(0.6, r * 0.18));
+      if (tipo === 'correcta') {
+        doc.line(cx - r*0.5, cy, cx - r*0.1, cy + r*0.4);
+        doc.line(cx - r*0.1, cy + r*0.4, cx + r*0.5, cy - r*0.4);
+      } else {
+        doc.line(cx - r*0.4, cy - r*0.4, cx + r*0.4, cy + r*0.4);
+        doc.line(cx - r*0.4, cy + r*0.4, cx + r*0.4, cy - r*0.4);
+      }
+    }
+  }
+
   let y = 0;
   let pageNum = 0;
 
@@ -904,7 +923,7 @@ function printPDF(){
     doc.setFillColor(...C.burgundy);
     doc.circle(ML+6, y+7, 4, 'F');
     doc.setFontSize(8); doc.setTextColor(255,255,255);
-    doc.text(String(num), ML+6, y+8.5, {align:'center'});
+    doc.text(String(num), ML+6, y+7, {align:'center', baseline:'middle'});
     y += 14;
   }
 
@@ -1035,7 +1054,7 @@ function printPDF(){
     if(chipType==='ok'){ doc.setFillColor(...C.verdeBg); doc.setDrawColor(...C.verde); doc.setTextColor(...C.verde); }
     else { doc.setFillColor(...C.rojoBg); doc.setDrawColor(...C.rojo); doc.setTextColor(...C.rojo); }
     doc.roundedRect(chipX, y+0.5, chipW, 5.5, 2, 2, 'FD');
-    doc.text(chipText, chipX+3, y+4.5);
+    doc.text(chipText, chipX + chipW/2, y+0.5 + 2.75, { align:'center', baseline:'middle' });
     y += 8;
 
     // Question text
@@ -1050,8 +1069,7 @@ function printPDF(){
       checkPage(12);
       const isC = oi === cIdx;
       const isS = oi === sel && !isCorrect;
-      const prefix = isC ? '●' : isS ? '✗' : '○';
-      const prefixColor = isC ? C.verde : isS ? C.rojo : [150,150,150];
+      const iconType = isC ? 'correcta' : isS ? 'incorrecta' : 'neutro';
 
       // Option background for correct/wrong
       if(isC || isS){
@@ -1059,9 +1077,12 @@ function printPDF(){
         doc.roundedRect(ML+1, y-3, CW-2, 5, 1, 1, 'F');
       }
 
+      // Vector icon (no Unicode)
+      dibujarIconoOpcion(doc, ML+4.5, y-0.5, 2.2, iconType);
+
       doc.setFontSize(8); doc.setFont('helvetica','bold');
-      doc.setTextColor(...prefixColor);
-      doc.text(prefix + ' ' + LETTERS[oi], ML+3, y);
+      doc.setTextColor(...C.dark);
+      doc.text(LETTERS[oi], ML+8, y);
       doc.setFont('helvetica','normal');
       doc.setTextColor(...C.dark);
       const optLines = doc.splitTextToSize(opt, CW - 22);
@@ -1177,6 +1198,25 @@ function generateStudentPDF(row){
     rojo:[165,35,52], rojoBg:[251,233,236], white:[255,255,255]
   };
 
+  /* ── Vector icon for options (replaces broken Unicode) ── */
+  function dibujarIconoOpcion(doc, cx, cy, r, tipo) {
+    var colores = { correcta:[30,123,79], incorrecta:[139,30,63], neutro:[196,201,212] };
+    var rgb = colores[tipo];
+    doc.setFillColor(rgb[0], rgb[1], rgb[2]);
+    doc.circle(cx, cy, r, tipo === 'neutro' ? 'D' : 'F');
+    if (tipo !== 'neutro') {
+      doc.setDrawColor(255, 255, 255);
+      doc.setLineWidth(Math.max(0.6, r * 0.18));
+      if (tipo === 'correcta') {
+        doc.line(cx - r*0.5, cy, cx - r*0.1, cy + r*0.4);
+        doc.line(cx - r*0.1, cy + r*0.4, cx + r*0.5, cy - r*0.4);
+      } else {
+        doc.line(cx - r*0.4, cy - r*0.4, cx + r*0.4, cy + r*0.4);
+        doc.line(cx - r*0.4, cy + r*0.4, cx + r*0.4, cy - r*0.4);
+      }
+    }
+  }
+
   let y = 0, pageNum = 0;
 
   function newPage(){
@@ -1200,7 +1240,7 @@ function generateStudentPDF(row){
     doc.text(title,ML+20,y+9);
     doc.setFillColor(...C.burgundy);doc.circle(ML+6,y+7,4,'F');
     doc.setFontSize(8);doc.setTextColor(255,255,255);
-    doc.text(String(num),ML+6,y+8.5,{align:'center'});
+    doc.text(String(num),ML+6,y+7,{align:'center',baseline:'middle'});
     y+=14;
   }
   function metaRow(label,value,x,w){
@@ -1275,7 +1315,7 @@ function generateStudentPDF(row){
     var tw=doc.getTextWidth(ct)+6;
     if(isCorrect){doc.setFillColor(...C.verdeBg);doc.setDrawColor(...C.verde);doc.setTextColor(...C.verde);}
     else{doc.setFillColor(...C.rojoBg);doc.setDrawColor(...C.rojo);doc.setTextColor(...C.rojo);}
-    doc.roundedRect(chipX,y+0.5,tw,5.5,2,2,'FD');doc.text(ct,chipX+3,y+4.5);y+=8;
+    doc.roundedRect(chipX,y+0.5,tw,5.5,2,2,'FD');doc.text(ct,chipX+tw/2,y+0.5+2.75,{align:'center',baseline:'middle'});y+=8;
 
     // Question text
     doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(...C.dark);
@@ -1286,10 +1326,10 @@ function generateStudentPDF(row){
       a.options.forEach(function(opt,oi){
         checkPage(12);
         var isC=oi===a.correct;var isS=oi===a.selected&&!isCorrect;
-        var prefix=isC?'●':isS?'✗':'○';
-        var pc=isC?C.verde:isS?C.rojo:[150,150,150];
+        var iconType=isC?'correcta':isS?'incorrecta':'neutro';
         if(isC||isS){doc.setFillColor(isC?C.verdeBg[0]:C.rojoBg[0],isC?C.verdeBg[1]:C.rojoBg[1],isC?C.verdeBg[2]:C.rojoBg[2]);doc.roundedRect(ML+1,y-3,CW-2,5,1,1,'F');}
-        doc.setFontSize(8);doc.setFont('helvetica','bold');doc.setTextColor(...pc);doc.text(prefix+' '+LETTERS[oi],ML+3,y);
+        dibujarIconoOpcion(doc,ML+4.5,y-0.5,2.2,iconType);
+        doc.setFontSize(8);doc.setFont('helvetica','bold');doc.setTextColor(...C.dark);doc.text(LETTERS[oi],ML+8,y);
         doc.setFont('helvetica','normal');doc.setTextColor(...C.dark);
         var optLines=doc.splitTextToSize(opt,CW-22);doc.text(optLines,ML+16,y);y+=Math.max(1,optLines.length)*3.6+0.8;
       });
