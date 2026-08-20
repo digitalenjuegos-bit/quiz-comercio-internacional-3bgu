@@ -784,7 +784,7 @@ function printPDF(){
   // Summary chips
   doc.setFontSize(8.5); doc.setFont('helvetica','bold');
   doc.setTextColor(...C.navy);
-  doc.text('Distribución de respuestas:', ML, y+4);
+  doc.text('Respuestas correctas por posición de letra:', ML, y+4);
   y += 7;
   doc.setFont('helvetica','normal');
   doc.setFontSize(8);
@@ -856,20 +856,21 @@ function printPDF(){
       y += Math.max(1, optLines.length) * 3.6 + 0.8;
     });
 
-    // Explanation
+    // Explanation — box wraps full content
     if(q.explanation){
       checkPage(15);
       y += 1;
+      const expLines = doc.splitTextToSize(q.explanation, CW - 10);
+      const expBoxH = expLines.length * 3.2 + 10;
       doc.setFillColor(C.gris[0], C.gris[1], C.gris[2]);
       doc.setDrawColor(...C.linea); doc.setLineWidth(0.3);
-      doc.roundedRect(ML+1, y-2, CW-2, 6, 1, 1, 'FD');
+      doc.roundedRect(ML+1, y-2, CW-2, expBoxH, 1, 1, 'FD');
       doc.setFontSize(7.5); doc.setFont('helvetica','bold');
       doc.setTextColor(...C.navy);
       doc.text('Explicación:', ML+4, y+2);
       y += 6;
       doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
       doc.setTextColor(80,80,80);
-      const expLines = doc.splitTextToSize(q.explanation, CW - 6);
       doc.text(expLines, ML+3, y);
       y += expLines.length * 3.2 + 2;
     }
@@ -897,11 +898,15 @@ function printPDF(){
 
       doc.setFontSize(7.5);
       doc.setTextColor(...C.rojo);
-      doc.text('Tu respuesta: ' + LETTERS[w.sel] + ' — ' + w.opts[w.sel].substring(0,80) + (w.opts[w.sel].length>80?'...':''), ML+6, y);
-      y += 4;
+      const sUserAns = 'Tu respuesta: ' + LETTERS[w.sel] + ' — ' + w.opts[w.sel];
+      const sUserLines = doc.splitTextToSize(sUserAns, CW - 10);
+      doc.text(sUserLines, ML+6, y);
+      y += sUserLines.length * 3.5 + 1;
       doc.setTextColor(...C.verde);
-      doc.text('Respuesta correcta: ' + LETTERS[w.cIdx] + ' — ' + w.opts[w.cIdx].substring(0,80) + (w.opts[w.cIdx].length>80?'...':''), ML+6, y);
-      y += 5;
+      const sCorrAns = 'Respuesta correcta: ' + LETTERS[w.cIdx] + ' — ' + w.opts[w.cIdx];
+      const sCorrLines = doc.splitTextToSize(sCorrAns, CW - 10);
+      doc.text(sCorrLines, ML+6, y);
+      y += sCorrLines.length * 3.5 + 5;
     });
   }
 
@@ -943,7 +948,14 @@ function generateStudentPDF(row){
   const total = row.total || 0;
   const score10 = Number(row.score_10 || 0).toFixed(1);
   const answers = row.answers || [];
+  const wrong = answers.filter(a => !a.ok);
   const LETTERS = ['A','B','C','D'];
+
+  // Lookup explanations from QUESTION_BANK by matching question text
+  const explanationMap = {};
+  if(typeof QUESTION_BANK !== 'undefined'){
+    QUESTION_BANK.forEach(function(q){ explanationMap[q.question] = q.explanation || ''; });
+  }
 
   const C = {
     navy:[31,42,90], burgundy:[142,27,58], gold:[217,177,75], blue:[46,116,181],
@@ -985,6 +997,7 @@ function generateStudentPDF(row){
     doc.setFont('helvetica','normal');doc.setTextColor(...C.dark);doc.text(value,x+w*0.38,y+5);
   }
 
+  /* ── PAGE 1: HEADER ── */
   newPage();
   doc.setFillColor(...C.navy);doc.rect(0,0,W,26,'F');
   doc.setFontSize(15);doc.setFont('helvetica','bold');doc.setTextColor(255,255,255);
@@ -1008,6 +1021,7 @@ function generateStudentPDF(row){
   metaRow('Fecha',row.created_at?new Date(row.created_at).toLocaleDateString('es-EC'):'-',ML+colW*2,colW);
   y+=10;
 
+  /* ═══════ SECTION 1: RESUMEN DEL RESULTADO ═══════ */
   sectionTitle(1,'Resumen del resultado');
   const boxW=70,boxH=28,boxX=ML+(CW-boxW)/2;
   doc.setFillColor(253,249,238);doc.setDrawColor(...C.gold);doc.setLineWidth(0.8);
@@ -1022,41 +1036,121 @@ function generateStudentPDF(row){
   doc.setFillColor(...col);doc.roundedRect(barX,barY,barW*pct,barH,1,1,'F');
   y+=boxH+6;
 
+  // Answer distribution
+  doc.setFontSize(8.5);doc.setFont('helvetica','bold');doc.setTextColor(...C.navy);
+  doc.text('Respuestas correctas por posición de letra:',ML,y+4);
+  y+=7;
+  doc.setFont('helvetica','normal');doc.setFontSize(8);
+  const distA=answers.filter(a=>a.correct===0&&a.ok).length;
+  const distB=answers.filter(a=>a.correct===1&&a.ok).length;
+  const distC=answers.filter(a=>a.correct===2&&a.ok).length;
+  const distD=answers.filter(a=>a.correct===3&&a.ok).length;
+  doc.text('A correctas: '+distA+'  |  B correctas: '+distB+'  |  C correctas: '+distC+'  |  D correctas: '+distD,ML+4,y);
+  y+=5;
+
+  /* ═══════ SECTION 2: RETROALIMENTACIÓN POR PREGUNTA (con explicaciones) ═══════ */
   y+=4;sectionTitle(2,'Retroalimentación por pregunta');
-  answers.forEach((a,i)=>{
-    const isCorrect=a.ok;
+  answers.forEach(function(a,i){
+    var isCorrect=a.ok;
     checkPage(50);
+    // Question header + chip
     doc.setFontSize(9.5);doc.setFont('helvetica','bold');doc.setTextColor(...C.navy);
     doc.text((i+1)+'. ',ML,y+4);
-    const chipX=ML+doc.getTextWidth((i+1)+'. ')+2;
+    var chipX=ML+doc.getTextWidth((i+1)+'. ')+2;
     doc.setFontSize(7.5);doc.setFont('helvetica','bold');
-    const ct=isCorrect?'Correcta':'Incorrecta';
-    const tw=doc.getTextWidth(ct)+6;
+    var ct=isCorrect?'Correcta':'Incorrecta';
+    var tw=doc.getTextWidth(ct)+6;
     if(isCorrect){doc.setFillColor(...C.verdeBg);doc.setDrawColor(...C.verde);doc.setTextColor(...C.verde);}
     else{doc.setFillColor(...C.rojoBg);doc.setDrawColor(...C.rojo);doc.setTextColor(...C.rojo);}
     doc.roundedRect(chipX,y+0.5,tw,5.5,2,2,'FD');doc.text(ct,chipX+3,y+4.5);y+=8;
 
+    // Question text
     doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(...C.dark);
-    const qLines=doc.splitTextToSize(a.question,CW-4);doc.text(qLines,ML+2,y);y+=qLines.length*3.8+2;
+    var qLines=doc.splitTextToSize(a.question,CW-4);doc.text(qLines,ML+2,y);y+=qLines.length*3.8+2;
 
+    // Options
     if(a.options&&typeof a.correct==='number'){
-      a.options.forEach((opt,oi)=>{
+      a.options.forEach(function(opt,oi){
         checkPage(12);
-        const isC=oi===a.correct;const isS=oi===a.selected&&!isCorrect;
-        const prefix=isC?'●':isS?'✗':'○';
-        const pc=isC?C.verde:isS?C.rojo:[150,150,150];
+        var isC=oi===a.correct;var isS=oi===a.selected&&!isCorrect;
+        var prefix=isC?'●':isS?'✗':'○';
+        var pc=isC?C.verde:isS?C.rojo:[150,150,150];
         if(isC||isS){doc.setFillColor(isC?C.verdeBg[0]:C.rojoBg[0],isC?C.verdeBg[1]:C.rojoBg[1],isC?C.verdeBg[2]:C.rojoBg[2]);doc.roundedRect(ML+1,y-3,CW-2,5,1,1,'F');}
         doc.setFontSize(8);doc.setFont('helvetica','bold');doc.setTextColor(...pc);doc.text(prefix+' '+LETTERS[oi],ML+3,y);
         doc.setFont('helvetica','normal');doc.setTextColor(...C.dark);
-        const optLines=doc.splitTextToSize(opt,CW-22);doc.text(optLines,ML+16,y);y+=Math.max(1,optLines.length)*3.6+0.8;
+        var optLines=doc.splitTextToSize(opt,CW-22);doc.text(optLines,ML+16,y);y+=Math.max(1,optLines.length)*3.6+0.8;
       });
+    }
+
+    // Explanation (lookup from QUESTION_BANK)
+    var explanation=explanationMap[a.question]||'';
+    if(explanation){
+      checkPage(15);
+      y+=1;
+      var expLines=doc.splitTextToSize(explanation,CW-10);
+      var expBoxH=expLines.length*3.2+10;
+      doc.setFillColor(C.gris[0],C.gris[1],C.gris[2]);
+      doc.setDrawColor(...C.linea);doc.setLineWidth(0.3);
+      doc.roundedRect(ML+1,y-2,CW-2,expBoxH,1,1,'FD');
+      doc.setFontSize(7.5);doc.setFont('helvetica','bold');doc.setTextColor(...C.navy);
+      doc.text('Explicación:',ML+4,y+2);
+      y+=6;
+      doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(80,80,80);
+      doc.text(expLines,ML+3,y);
+      y+=expLines.length*3.2+2;
     }
     y+=4;
   });
 
-  if(y>250){newPage();y=20;}
+  /* ═══════ SECTION 3: ANÁLISIS DE ERRORES ═══════ */
+  if(wrong.length>0){
+    checkPage(20);
+    sectionTitle(3,'Análisis de errores ('+wrong.length+' pregunta'+(wrong.length!==1?'s':'')+')');
+
+    wrong.forEach(function(w,wi){
+      checkPage(20);
+      doc.setFontSize(8.5);doc.setFont('helvetica','bold');doc.setTextColor(...C.burgundy);
+      doc.text((wi+1)+'. Pregunta '+(answers.indexOf(w)+1),ML+2,y);
+      y+=5;
+
+      doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(...C.dark);
+      var wqLines=doc.splitTextToSize(w.question,CW-6);doc.text(wqLines,ML+4,y);
+      y+=wqLines.length*3.5+2;
+
+      // User answer (full text, wrapped)
+      doc.setFontSize(7.5);doc.setTextColor(...C.rojo);
+      var sUserAns='Tu respuesta: '+LETTERS[w.selected]+' — '+(w.options[w.selected]||'—');
+      var sUserLines=doc.splitTextToSize(sUserAns,CW-10);
+      doc.text(sUserLines,ML+6,y);y+=sUserLines.length*3.5+1;
+
+      // Correct answer (full text, wrapped)
+      doc.setTextColor(...C.verde);
+      var sCorrAns='Respuesta correcta: '+LETTERS[w.correct]+' — '+(w.options[w.correct]||'—');
+      var sCorrLines=doc.splitTextToSize(sCorrAns,CW-10);
+      doc.text(sCorrLines,ML+6,y);y+=sCorrLines.length*3.5+5;
+    });
+  }
+
+  /* ═══════ SIGNATURES ═══════ */
+  checkPage(30);
+  y+=10;
+  doc.setDrawColor(...C.dark);doc.setLineWidth(0.5);
+  var sigW=CW/2-10;
+  // Left signature
+  doc.line(ML,y,ML+sigW,y);
+  doc.setFontSize(8);doc.setFont('helvetica','bold');doc.setTextColor(...C.navy);
+  doc.text('Mr. Alberto Ottati R.',ML+sigW/2,y+4,{align:'center'});
+  doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(100,100,100);
+  doc.text('Docente Economía IB NM',ML+sigW/2,y+8,{align:'center'});
+  // Right signature
+  doc.line(ML+sigW+20,y,ML+sigW*2+20,y);
+  doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...C.navy);
+  doc.text(name.trim(),ML+sigW+20+sigW/2,y+4,{align:'center'});
+  doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(100,100,100);
+  doc.text('Estudiante 3BGU',ML+sigW+20+sigW/2,y+8,{align:'center'});
+
   doc.save('Informe_ComercioInternacional_'+name.trim().replace(/\s+/g,'_')+'.pdf');
-  } catch(e){ console.error('generateStudentPDF error:', e); alert('Error al generar PDF: ' + e.message); }
+  } catch(e){ console.error('generateStudentPDF error:',e);alert('Error al generar PDF: '+e.message); }
 }
 
 /* ═══════ PANEL DOCENTE ═══════ */
